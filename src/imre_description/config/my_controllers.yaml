@@ -1,0 +1,32 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 50  # 100 bazen Gazebo'yu yorar, 50 çok daha stabildir.
+    use_sim_time: true
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    camera_controller:
+      type: position_controllers/JointGroupPositionController
+
+    diff_drive_controller:
+      type: diff_drive_controller/DiffDriveController
+
+camera_controller:
+  ros__parameters:
+    joints:
+      - camera_joint
+    interface_name: position # Bu satır kritik, eksik olursa çöker!
+
+diff_drive_controller:
+  ros__parameters:
+    left_wheel_names: ["left_wheel_joint"]
+    right_wheel_names: ["right_wheel_joint"]
+    wheel_separation: 0.35
+    wheel_radius: 0.05
+
+    use_stamped_vel: false
+    publish_rate: 50.0
+    odom_frame_id: odom
+    base_frame_id: base_link
+    publish_wheel_tf: true

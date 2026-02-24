@@ -1,0 +1,321 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="imre_robot">
+
+    <xacro:property name="chassis_length" value="0.2"/>
+    <xacro:property name="chassis_width" value="0.15"/>
+    <xacro:property name="chassis_height" value="0.05"/>
+    <xacro:property name="chassis_mass" value="0.5"/>
+    <xacro:property name="wheel_radius" value="0.033"/>
+    <xacro:property name="wheel_thickness" value="0.026"/>
+    <xacro:property name="wheel_mass" value="0.1"/>
+    <xacro:property name="caster_radius" value="0.0165"/>
+    <xacro:property name="caster_mass" value="0.05"/>
+
+    <material name="white"> <color rgba="1 1 1 1" /> </material>
+    <material name="black"> <color rgba="0 0 0 1" /> </material>
+    <material name="orange"> <color rgba="1 0.3 0.1 1"/> </material>
+    <material name="red"> <color rgba="1 0 0 1"/> </material>
+
+    <xacro:macro name="inertial_box" params="mass x y z *origin">
+        <inertial>
+            <xacro:insert_block name="origin"/>
+            <mass value="${mass}"/>
+            <inertia ixx="${(1/12) * mass * (y*y + z*z)}" ixy="0.0" ixz="0.0"
+                     iyy="${(1/12) * mass * (x*x + z*z)}" iyz="0.0"
+                     izz="${(1/12) * mass * (x*x + y*y)}"/>
+        </inertial>
+    </xacro:macro>
+
+    <xacro:macro name="inertial_cylinder" params="mass radius length *origin">
+        <inertial>
+            <xacro:insert_block name="origin"/>
+            <mass value="${mass}"/>
+            <inertia ixx="${(1/12) * mass * (3*radius*radius + length*length)}" ixy="0.0" ixz="0.0"
+                     iyy="${(1/12) * mass * (3*radius*radius + length*length)}" iyz="0.0"
+                     izz="${(1/2) * mass * radius*radius}"/>
+        </inertial>
+    </xacro:macro>
+
+    <xacro:macro name="inertial_sphere" params="mass radius *origin">
+        <inertial>
+            <xacro:insert_block name="origin"/>
+            <mass value="${mass}"/>
+            <inertia ixx="${(2/5) * mass * (radius*radius)}" ixy="0.0" ixz="0.0"
+                     iyy="${(2/5) * mass * (radius*radius)}" iyz="0.0"
+                     izz="${(2/5) * mass * (radius*radius)}"/>
+        </inertial>
+    </xacro:macro>
+
+    <link name="base_link"></link>
+
+    <joint name="chassis_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="chassis"/>
+        <origin xyz="-0.05 0 0"/>
+    </joint>
+
+    <link name="chassis">
+        <visual>
+            <origin xyz="${chassis_length/2} 0 ${chassis_height/2}"/>
+            <geometry> <box size="${chassis_length} ${chassis_width} ${chassis_height}"/> </geometry>
+            <material name="orange"/>
+        </visual>
+        <collision>
+            <origin xyz="${chassis_length/2} 0 ${chassis_height/2}"/>
+            <geometry> <box size="${chassis_length} ${chassis_width} ${chassis_height}"/> </geometry>
+        </collision>
+        <xacro:inertial_box mass="${chassis_mass}" x="${chassis_length}" y="${chassis_width}" z="${chassis_height}">
+            <origin xyz="${chassis_length/2} 0 ${chassis_height/2}" rpy="0 0 0"/>
+        </xacro:inertial_box>
+    </link>
+
+    <joint name="left_wheel_joint" type="continuous">
+        <parent link="base_link"/>
+        <child link="left_wheel"/>
+        <origin xyz="0 0.09 0" rpy="-${pi/2} 0 0"/>
+        <axis xyz="0 0 1"/>
+    </joint>
+    <link name="left_wheel">
+        <visual>
+            <geometry> <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/> </geometry>
+            <material name="black"/>
+        </visual>
+        <collision>
+            <geometry> <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/> </geometry>
+        </collision>
+        <xacro:inertial_cylinder mass="${wheel_mass}" radius="${wheel_radius}" length="${wheel_thickness}">
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </xacro:inertial_cylinder>
+    </link>
+
+    <joint name="right_wheel_joint" type="continuous">
+        <parent link="base_link"/>
+        <child link="right_wheel"/>
+        <origin xyz="0 -0.09 0" rpy="${pi/2} 0 0"/>
+        <axis xyz="0 0 -1"/>
+    </joint>
+    <link name="right_wheel">
+        <visual>
+            <geometry> <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/> </geometry>
+            <material name="black"/>
+        </visual>
+        <collision>
+            <geometry> <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/> </geometry>
+        </collision>
+        <xacro:inertial_cylinder mass="${wheel_mass}" radius="${wheel_radius}" length="${wheel_thickness}">
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </xacro:inertial_cylinder>
+    </link>
+
+    <joint name="caster_wheel_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="caster_wheel"/>
+        <origin xyz="0.12 0 -0.0165" rpy="0 0 0"/>
+    </joint>
+    <link name="caster_wheel">
+        <visual>
+            <geometry> <sphere radius="${caster_radius}"/> </geometry>
+            <material name="white"/>
+        </visual>
+        <collision>
+            <geometry> <sphere radius="${caster_radius}"/> </geometry>
+        </collision>
+        <xacro:inertial_sphere mass="${caster_mass}" radius="${caster_radius}">
+             <origin xyz="0 0 0" rpy="0 0 0"/>
+        </xacro:inertial_sphere>
+    </link>
+    <gazebo reference="caster_wheel">
+        <mu1>0.0</mu1> <mu2>0.0</mu2> <material>Gazebo/White</material>
+    </gazebo>
+
+    <joint name="camera_joint" type="revolute">
+        <parent link="chassis"/>
+        <child link="camera_link"/>
+        <origin xyz="0.23 0 0.08" rpy="0 0 0"/>
+        <axis xyz="0 1 0"/> 
+        <limit lower="0.0" upper="1.0" effort="100.0" velocity="2.0"/>
+        <dynamics damping="0.0" friction="0.0"/>
+    </joint>
+
+    <link name="camera_link">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 1.57 0"/>
+            <geometry> <cylinder radius="0.03" length="0.05"/> </geometry>
+            <material name="black"/>
+        </visual>
+        <visual>
+            <origin xyz="0 0 0.026" rpy="0 1.57 0"/>
+            <geometry> <cylinder radius="0.005" length="0.01"/> </geometry>
+            <material name="red"/>
+        </visual>
+        <inertial>
+            <mass value="0.2"/> 
+            <inertia ixx="0.02" ixy="0" ixz="0" iyy="0.02" iyz="0" izz="0.02"/>
+        </inertial>
+    </link>
+
+    <joint name="camera_optical_joint" type="fixed">
+        <parent link="camera_link"/>
+        <child link="camera_link_optical"/>
+        <origin xyz="0 0 0" rpy="-1.57 0 -1.57"/>
+    </joint>
+    <link name="camera_link_optical"></link>
+
+    <gazebo reference="camera_link">
+        <sensor name="camera" type="camera">
+            <pose> 0 0 0 0 0 0 </pose>
+            <visualize>true</visualize>
+            <update_rate>10</update_rate>
+            <camera>
+                <horizontal_fov>1.089</horizontal_fov>
+                <image> <format>R8G8B8</format> <width>640</width> <height>480</height> </image>
+            </camera>
+            <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+                <frame_name>camera_link_optical</frame_name>
+            </plugin>
+        </sensor>
+
+        <sensor name="laser_sight" type="ray">
+            <pose> 0 0 0 0 0 0 </pose>
+            <visualize>true</visualize> <update_rate>30</update_rate>
+            <ray>
+                <scan>
+                    <horizontal>
+                        <samples>1</samples>
+                        <resolution>1</resolution>
+                        <min_angle>0</min_angle>
+                        <max_angle>0</max_angle>
+                    </horizontal>
+                </scan>
+                <range>
+                    <min>0.05</min>
+                    <max>50.0</max>
+                </range>
+            </ray>
+            <plugin name="laser_controller" filename="libgazebo_ros_ray_sensor.so">
+                <ros> <remapping>~/out:=/laser_sight_beam</remapping> </ros>
+                <output_type>sensor_msgs/LaserScan</output_type>
+            </plugin>
+        </sensor>
+    </gazebo>
+
+    <joint name="sonar_left_joint" type="fixed">
+        <parent link="chassis"/>
+        <child link="sonar_left_link"/>
+        <origin xyz="0.2 0.08 0.05" rpy="0 0 0.25"/>
+    </joint>
+    <link name="sonar_left_link">
+        <visual> <geometry> <box size="0.01 0.04 0.02"/> </geometry> <material name="black"/> </visual>
+    </link>
+    <gazebo reference="sonar_left_link">
+        <sensor name="sonar_left" type="ray">
+            <pose>0 0 0 0 0 0</pose> 
+            <visualize>false</visualize> 
+            <update_rate>10</update_rate>
+            <ray>
+                <scan> <horizontal> <samples>5</samples> <min_angle>-0.2</min_angle> <max_angle>0.2</max_angle> </horizontal> </scan>
+                <range> <min>0.02</min> <max>2.0</max> </range>
+            </ray>
+            <plugin name="sonar_left_controller" filename="libgazebo_ros_ray_sensor.so">
+                <ros> <remapping>~/out:=/sonar/left</remapping> </ros> <output_type>sensor_msgs/LaserScan</output_type>
+            </plugin>
+        </sensor>
+    </gazebo>
+
+    <joint name="sonar_right_joint" type="fixed">
+        <parent link="chassis"/>
+        <child link="sonar_right_link"/>
+        <origin xyz="0.2 -0.08 0.05" rpy="0 0 -0.25"/>
+    </joint>
+    <link name="sonar_right_link">
+        <visual> <geometry> <box size="0.01 0.04 0.02"/> </geometry> <material name="black"/> </visual>
+    </link>
+    <gazebo reference="sonar_right_link">
+        <sensor name="sonar_right" type="ray">
+            <pose>0 0 0 0 0 0</pose> 
+            <visualize>false</visualize> 
+            <update_rate>10</update_rate>
+            <ray>
+                <scan> <horizontal> <samples>5</samples> <min_angle>-0.2</min_angle> <max_angle>0.2</max_angle> </horizontal> </scan>
+                <range> <min>0.02</min> <max>2.0</max> </range>
+            </ray>
+            <plugin name="sonar_right_controller" filename="libgazebo_ros_ray_sensor.so">
+                <ros> <remapping>~/out:=/sonar/right</remapping> </ros> <output_type>sensor_msgs/LaserScan</output_type>
+            </plugin>
+        </sensor>
+    </gazebo>
+
+    <joint name="line_left_joint" type="fixed">
+        <parent link="chassis"/> <child link="line_left_link"/> <origin xyz="0.18 0.05 0.02" rpy="0 1.57 0"/>
+    </joint>
+    <link name="line_left_link">
+        <visual> <geometry> <box size="0.01 0.01 0.01"/> </geometry> <material name="black"/> </visual>
+    </link>
+    <gazebo reference="line_left_link">
+        <sensor name="line_left" type="camera">
+            <update_rate>20</update_rate>
+            <camera> <horizontal_fov>0.1</horizontal_fov> <image> <width>1</width> <height>1</height> <format>L8</format> </image> </camera>
+            <plugin name="line_left_controller" filename="libgazebo_ros_camera.so">
+                <frame_name>line_left_link</frame_name>
+                <camera_name>line_sensor/left</camera_name>
+                <image_topic_name>image_raw</image_topic_name>
+            </plugin>
+        </sensor>
+    </gazebo>
+
+    <joint name="line_right_joint" type="fixed">
+        <parent link="chassis"/> <child link="line_right_link"/> <origin xyz="0.18 -0.05 0.02" rpy="0 1.57 0"/>
+    </joint>
+    <link name="line_right_link">
+        <visual> <geometry> <box size="0.01 0.01 0.01"/> </geometry> <material name="black"/> </visual>
+    </link>
+    <gazebo reference="line_right_link">
+        <sensor name="line_right" type="camera">
+            <update_rate>20</update_rate>
+            <camera> <horizontal_fov>0.1</horizontal_fov> <image> <width>1</width> <height>1</height> <format>L8</format> </image> </camera>
+            <plugin name="line_right_controller" filename="libgazebo_ros_camera.so">
+                <frame_name>line_right_link</frame_name>
+                <camera_name>line_sensor/right</camera_name>
+                <image_topic_name>image_raw</image_topic_name>
+            </plugin>
+        </sensor>
+    </gazebo>
+
+    <gazebo>
+        <plugin name='diff_drive' filename='libgazebo_ros_diff_drive.so'>
+            <left_joint>left_wheel_joint</left_joint>
+            <right_joint>right_wheel_joint</right_joint>
+            <wheel_separation>0.18</wheel_separation>
+            <wheel_diameter>0.066</wheel_diameter>
+            <max_wheel_torque>200</max_wheel_torque>
+            <publish_odom>true</publish_odom>
+            <publish_odom_tf>true</publish_odom_tf>
+            <robot_base_frame>base_link</robot_base_frame>
+        </plugin>
+    </gazebo>
+
+    <gazebo reference="chassis"> <material>Gazebo/Orange</material> </gazebo>
+    <gazebo reference="left_wheel"> <material>Gazebo/FlatBlack</material> </gazebo>
+    <gazebo reference="right_wheel"> <material>Gazebo/FlatBlack</material> </gazebo>
+
+    <ros2_control name="GazeboSystem" type="system">
+        <hardware>
+            <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+        </hardware>
+        <joint name="camera_joint">
+            <command_interface name="position">
+                <param name="min">0.0</param>
+                <param name="max">1.0</param>
+            </command_interface>
+            <state_interface name="velocity"/>
+            <state_interface name="position"/>
+        </joint>
+    </ros2_control>
+
+    <gazebo>
+        <plugin name="gazebo_ros2_control" filename="libgazebo_ros2_control.so">
+            <parameters>$(find imre_description)/config/my_controllers.yaml</parameters>
+        </plugin>
+    </gazebo>
+
+</robot>

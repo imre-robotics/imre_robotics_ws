@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IMRE ROBOTICS PRO V3</title>
+    <script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.2/nipplejs.min.js"></script>
+    
+    <style>
+        /* --- GENEL TASARIM --- */
+        body { margin: 0; padding: 0; background: #0d0d0d; overflow: hidden; font-family: 'Courier New', Courier, monospace; color: #00FF41; }
+
+        /* KATMAN 1: KAMERA */
+        #video-layer {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 1; object-fit: fill;
+            filter: brightness(0.9) contrast(1.1);
+        }
+
+        /* KATMAN 2: HUD */
+        #hud-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; pointer-events: none;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.8);
+        }
+
+        .panel {
+            position: absolute;
+            background: rgba(0, 20, 0, 0.6);
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            padding: 10px;
+            font-size: 14px;
+            font-weight: bold;
+            text-shadow: 0 0 5px #00FF41;
+        }
+
+        #top-left { top: 20px; left: 20px; border-left: 4px solid #00FF41; }
+        #top-right { top: 20px; right: 20px; text-align: right; border-right: 4px solid #00FF41; }
+        #bottom-center { bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; }
+
+        /* NİŞANGAH */
+        #crosshair {
+            position: absolute; top: 50%; left: 50%;
+            width: 60px; height: 60px;
+            transform: translate(-50%, -50%);
+            border: 1px solid rgba(0, 255, 65, 0.5);
+            border-radius: 50%;
+            z-index: 15;
+        }
+        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #00FF41; }
+        #crosshair::before { top: 29px; left: 10px; width: 40px; height: 2px; }
+        #crosshair::after { top: 10px; left: 29px; width: 2px; height: 40px; }
+
+        /* 🔥 YENİ: LAZER IŞINI EFEKTİ 🔥 */
+        #laser-beam-hud {
+            position: absolute; 
+            top: 50%; left: 50%;
+            width: 6px; height: 6px; /* Merkez nokta */
+            background-color: red;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            /* Efekt Ayarları */
+            box-shadow: 0 0 15px 5px red, 0 0 30px 10px orange;
+            opacity: 0; /* Başlangıçta gizli */
+            transition: opacity 0.05s ease-in-out;
+            z-index: 14;
+        }
+
+        /* Lazer Işını Çizgisi (İsteğe bağlı, aşağı doğru uzayan ışın) */
+        #laser-beam-hud::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 2px; height: 100vh; /* Ekranın altına kadar */
+            background: linear-gradient(to bottom, rgba(255,0,0,0.8), rgba(255,0,0,0));
+            transform: translateX(-50%);
+        }
+
+        .data-row { margin-bottom: 5px; display: flex; justify-content: space-between; gap: 15px; }
+        .label { opacity: 0.7; }
+
+        /* KATMAN 3: KONTROL */
+        #joystick-zone {
+            position: absolute; bottom: 50px; right: 50px;
+            width: 140px; height: 140px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 50%;
+            border: 2px dashed rgba(0, 255, 65, 0.3);
+            pointer-events: auto; z-index: 20;
+        }
+        
+        .button-group {
+            position: absolute; bottom: 50px; left: 50px;
+            display: flex; gap: 10px; z-index: 20;
+        }
+        .mod-btn {
+            padding: 15px 20px;
+            border: 2px solid #00FF41;
+            background: rgba(0, 20, 0, 0.8);
+            color: #00FF41;
+            font-family: inherit; font-weight: bold; cursor: pointer;
+            transition: 0.3s;
+        }
+        .active-mode { background: #00FF41 !important; color: black !important; box-shadow: 0 0 15px #00FF41; }
+        .stop-btn { border-color: red; color: red; }
+        .stop-active { background: red !important; color: white !important; box-shadow: 0 0 15px red; }
+
+    </style>
+</head>
+<body>
+
+    <img id="video-layer" src="http://10.127.76.141:8080/stream?topic=/camera/image_raw&type=mjpeg">
+
+    <div id="hud-layer">
+        <div id="top-left" class="panel">
+            <div class="data-row"><span class="label">SİSTEM:</span> <span>ONLINE</span></div>
+            <div class="data-row"><span class="label">BATARYA:</span> <span>%84</span></div>
+            <div class="data-row"><span class="label">HIZ:</span> <span id="speed-val">0.0</span> m/s</div>
+        </div>
+
+        <div id="top-right" class="panel">
+            <div class="data-row"><span>10.207.59.141</span> <span class="label">:IP</span></div>
+            <div class="data-row"><span id="conn-status" style="color:red">BAĞLANIYOR...</span> <span class="label">:DURUM</span></div>
+        </div>
+
+        <div id="crosshair"></div>
+        
+        <div id="laser-beam-hud"></div>
+
+        <div id="bottom-center" class="panel" style="background:transparent; border:none;">
+            <small>IMRE ROBOTICS SYSTEM V3.0</small>
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button id="btn-engel" class="mod-btn" onclick="setMode('ENGEL')">🚧 ENGEL</button>
+        <button id="btn-cizgi" class="mod-btn" onclick="setMode('CIZGI')">🏁 ÇİZGİ</button>
+        <button id="btn-hedef" class="mod-btn" onclick="setMode('HEDEF')">🎯 HEDEF</button>
+        <button id="btn-manuel" class="mod-btn stop-btn active-mode" onclick="setMode('MANUEL')">🛑 MANUEL</button>
+    </div>
+
+    <div id="joystick-zone"></div>
+
+    <div style="position: absolute; bottom: 150px; right: 20px; z-index: 20; display: flex; flex-direction: column; gap: 10px; align-items: center;">
+        
+        <div style="background: rgba(0, 20, 0, 0.8); padding: 10px; border: 2px solid #00FF41; border-radius: 10px; height: 150px;">
+            <input type="range" min="0" max="180" value="90" id="servoSlider" 
+                   style="writing-mode: bt-lr; -webkit-appearance: slider-vertical; width: 30px; height: 130px;"
+                   oninput="servoHareket(this.value)">
+        </div>
+        <span style="color: #00FF41; font-weight: bold; font-size: 12px;">KAMERA</span>
+
+        <button id="btn-fire" onmousedown="atesEt(true)" onmouseup="atesEt(false)" onmouseleave="atesEt(false)"
+                onTouchStart="atesEt(true)" onTouchEnd="atesEt(false)"
+                style="width: 60px; height: 60px; border-radius: 50%; background: rgba(255, 0, 0, 0.3); border: 3px solid red; color: red; font-weight: bold; cursor: pointer; font-size: 20px;">
+            🔥
+        </button>
+    </div>
+
+    <script>
+        // IP ADRESİNİ KENDİNE GÖRE DÜZENLE
+        const ros = new ROSLIB.Ros({ url: 'ws://10.127.76.141:9090' });
+
+        ros.on('connection', () => {
+            document.getElementById('conn-status').innerText = "ONLINE";
+            document.getElementById('conn-status').style.color = "#00FF41";
+        });
+        ros.on('error', () => {
+            document.getElementById('conn-status').innerText = "HATA";
+            document.getElementById('conn-status').style.color = "red";
+        });
+
+        const cmdVel = new ROSLIB.Topic({ ros: ros, name: '/cmd_vel', messageType: 'geometry_msgs/Twist' });
+        const modeTopic = new ROSLIB.Topic({ ros: ros, name: '/otonom_mod_secimi', messageType: 'std_msgs/String' });
+        const servoTopic = new ROSLIB.Topic({ ros: ros, name: '/kamera_aci', messageType: 'std_msgs/Int32' });
+        const fireTopic = new ROSLIB.Topic({ ros: ros, name: '/lazer_tetik', messageType: 'std_msgs/Bool' });
+
+        let currentMode = "MANUEL";
+
+        // JOYSTICK
+        const manager = nipplejs.create({
+            zone: document.getElementById('joystick-zone'),
+            mode: 'static', position: { left: '50%', top: '50%' }, color: '#00FF41', size: 100
+        });
+
+        manager.on('move', (evt, data) => {
+            if (currentMode !== "MANUEL") return; 
+            if (data.vector) {
+                let linear = data.vector.y * 0.5; 
+                let angular = -data.vector.x * 1.0;
+                cmdVel.publish(new ROSLIB.Message({
+                    linear: { x: linear, y: 0, z: 0 }, angular: { x: 0, y: 0, z: angular }
+                }));
+                document.getElementById('speed-val').innerText = linear.toFixed(2);
+            }
+        });
+
+        manager.on('end', () => {
+            if (currentMode === "MANUEL") {
+                cmdVel.publish(new ROSLIB.Message({ linear: {x:0,y:0,z:0}, angular: {x:0,y:0,z:0} }));
+                document.getElementById('speed-val').innerText = "0.0";
+            }
+        });
+
+        function setMode(modeName) {
+            currentMode = modeName;
+            modeTopic.publish(new ROSLIB.Message({ data: modeName }));
+            document.querySelectorAll('.mod-btn').forEach(btn => btn.classList.remove('active-mode', 'stop-active'));
+            
+            if (modeName === 'ENGEL') document.getElementById('btn-engel').classList.add('active-mode');
+            else if (modeName === 'CIZGI') document.getElementById('btn-cizgi').classList.add('active-mode');
+            else if (modeName === 'HEDEF') document.getElementById('btn-hedef').classList.add('active-mode');
+            else document.getElementById('btn-manuel').classList.add('stop-active');
+        }   
+
+        function servoHareket(aci) {
+            servoTopic.publish(new ROSLIB.Message({ data: parseInt(aci) }));
+        }
+
+        // 🔥 GÜNCELLENEN ATEŞ ETME FONKSİYONU 🔥
+        function atesEt(durum) {
+            // 1. ROS'a haber ver (Terminalde BAM BAM yazsın)
+            fireTopic.publish(new ROSLIB.Message({ data: durum }));
+            
+            // 2. Buton Efekti
+            const btn = document.getElementById('btn-fire');
+            
+            // 3. EKRANDAKİ LAZER EFEKTİ (HUD)
+            const laserHud = document.getElementById('laser-beam-hud');
+
+            if(durum) {
+                // Basınca: Kırmızı yap, parlat, lazeri göster
+                btn.style.background = "red";
+                btn.style.boxShadow = "0 0 20px red";
+                laserHud.style.opacity = "1"; // GÖRÜNÜR YAP
+            } else {
+                // Çekince: Eski haline dön, lazeri gizle
+                btn.style.background = "rgba(255, 0, 0, 0.3)";
+                btn.style.boxShadow = "none";
+                laserHud.style.opacity = "0"; // GİZLE
+            }
+        }
+    </script>
+</body>
+</html>
